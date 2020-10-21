@@ -5,25 +5,96 @@ const stopBtn = document.getElementById('stopBtn');
 const videoSelectBtn = document.getElementById('videoSelectBtn');
 videoSelectBtn.onclick = getVideoSources;
 
-const {desktopCapturer, remote} = require('electron');
-const {Menu} = remote;
-
-// Get the available video sources
+const { desktopCapturer, remote} = require('electron');
+const {dialog, Menu} = remote;
 
 async function getVideoSources() {
-    const inputSources = await desktopCapturer.getSources({
-        types: ['window', 'screen']
-    });
+  const inputSources = await desktopCapturer.getSources({
+    types: ['window', 'screen']
+  });
 
-    const videoOptionsMenu = Menu.buildFromTemplate(
-        inputSources.map(source => {
-            return {
-                label: source.name,
-                click: () => selectSource(source)
-            };
-        })
-    );
+  const videoOptionsMenu = Menu.buildFromTemplate(
+    inputSources.map(source => {
+      return {
+        label: source.name,
+        click: () => selectSource(source)
+      };
+    })
+  );
 
-    videoOptionsMenu.popup();
 
+  videoOptionsMenu.popup();
 }
+
+startBtn.onclick = e => {
+    mediaRecorder.start();
+    startBtn.classList.add('is-danger');
+    startBtn.innerText = 'Recording';
+}
+
+stopBtn.onclick = e => {
+    mediaRecorder.stop();
+    startBtn.classList.remove('is-danger');
+    startBtn.innerText = 'Start'
+}
+
+let mediaRecorder; // MediaRecorder instance to capture footage
+const recordedPieces = [];
+
+async function selectSource(source) {
+    videoSelectBtn.innerText = source.name;
+
+    const constraints = {
+        audio: false,
+        video: {
+           mandatory: {
+               chromeMediaSource: 'desktop',
+               chromeMediaSourceId: source.id
+           } 
+        }
+    }
+
+    // Create a Stream
+    const stream = await navigator.mediaDevices
+        .getUserMedia(constraints);
+
+    // Preview the source in a video element
+    videoElement.srcObject = stream;
+    videoElement.play();
+
+    // Create the Media Recorder
+    const options = {mimeType: 'video/webm; codecs=vp9'};
+    mediaRecorder = new MediaRecorder(stream, options);
+
+    // Register Event Handlers
+    mediaRecorder.ondataavailable = handleDataAvailable;
+    mediaRecorder.onstop = handleStop;
+}
+
+// Captures all recorded chunks
+function handleDataAvailable(e) {
+    console.log('video data available');
+    recordedPieces.push(e.data);
+}
+
+const {writeFile} = require('fs');
+const { start } = require('repl');
+
+// Saves the video file on stop
+async function handleStop(e) {
+    const blob = new Blob(recordedPieces, {
+      type: 'video/webm; codecs=vp9'
+    });
+  
+    const buffer = Buffer.from(await blob.arrayBuffer());
+  
+    const { filePath } = await dialog.showSaveDialog({
+      buttonLabel: 'Save video',
+      defaultPath: `vid-${Date.now()}.webm`
+    });
+  
+    if (filePath) {
+      writeFile(filePath, buffer, () => console.log('video saved successfully!'));
+    }
+  
+  }
