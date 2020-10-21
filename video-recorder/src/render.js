@@ -78,7 +78,6 @@ function handleDataAvailable(e) {
 }
 
 const {writeFile} = require('fs');
-const { start } = require('repl');
 
 // Saves the video file on stop
 async function handleStop(e) {
